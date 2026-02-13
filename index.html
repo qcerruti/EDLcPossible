@@ -358,7 +358,7 @@
       );
     };
 
-    const [odOpen, setOdOpen] = useState(false); // OneDrive replié par défaut
+    
 
     const ETAT_OPTIONS = ["Bon", "Approprié", "Mauvais", "Sans objet"];
     const OUI_NON = ["Oui", "Non"];
@@ -849,6 +849,8 @@
       const [odFolders, setOdFolders] = useState([]); // sous-dossiers de Maintenance/
       const [odSelected, setOdSelected] = useState(""); // sous-dossier choisi
       const [odLoading, setOdLoading] = useState(false);
+
+      const [odOpen, setOdOpen] = useState(false); // OneDrive replié par défaut
 
       // Liste des JSON trouvés dans le chemin choisi
       const [odFiles, setOdFiles] = useState([]);
