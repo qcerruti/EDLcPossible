@@ -193,8 +193,8 @@
         info.type === "entree"
           ? "ENTREE"
           : info.type === "sortie"
-          ? "SORTIE"
-          : "VERIFICATION";
+            ? "SORTIE"
+            : "VERIFICATION";
       return `${adresse}-${locataire}-${date}-${type}`;
     };
 
@@ -363,7 +363,7 @@
       );
     };
 
-    
+
 
     const ETAT_OPTIONS = ["Bon", "Approprié", "Mauvais", "Sans objet"];
     const OUI_NON = ["Oui", "Non"];
@@ -537,6 +537,12 @@
           commentaire: "",
           photos: [],
         })),
+        compteurs: [
+          { id: "eau_froide", titre: "💧 Eau froide", commentaire: "", photos: [] },
+          { id: "eau_chaude", titre: "🔥 Eau chaude", commentaire: "", photos: [] },
+          { id: "electricite", titre: "⚡ Électricité", commentaire: "", photos: [] },
+          { id: "gaz", titre: "🔥 Gaz", commentaire: "", photos: [] },
+        ],
         signatures: {
           locataire: { nom: "", image: "" },
           proprietaire: { nom: "", image: "" },
@@ -1103,6 +1109,15 @@
             cle.id === cleId ? { ...cle, [field]: value } : cle,
           ),
         }));
+
+      const updateCompteur = (compteurId, field, value) =>
+        setData((prev) => ({
+          ...prev,
+          compteurs: (prev.compteurs || []).map((c) =>
+            c.id === compteurId ? { ...c, [field]: value } : c,
+          ),
+        }));
+
       const updateSignature = (who, field, value) =>
         setData((prev) => ({
           ...prev,
@@ -1481,6 +1496,7 @@
           piece.inventaire.forEach((item) => (total += item.photos.length));
         });
         data.cles.forEach((cle) => (total += cle.photos.length));
+        (data.compteurs || []).forEach((c) => (total += c.photos.length));
         return total;
       };
 
@@ -3405,6 +3421,80 @@
                   </table>
                 </div>
 
+                {/* COMPTEURS */}
+                {(data.compteurs || []).length > 0 && (
+                  <div style={{ marginBottom: "15px" }}>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        tableLayout: "fixed",
+                      }}
+                    >
+                      <thead>
+                        <tr>
+                          <th
+                            colSpan="2"
+                            style={{
+                              backgroundColor: "#0ea5e9",
+                              color: "white",
+                              padding: "8px 12px",
+                              fontWeight: "bold",
+                              fontSize: "12px",
+                              textTransform: "uppercase",
+                              textAlign: "left",
+                              border: "none",
+                            }}
+                          >
+                            📊 Compteurs
+                          </th>
+                        </tr>
+                        <tr style={{ backgroundColor: "#e5e7eb" }}>
+                          <th
+                            style={{
+                              padding: "6px 8px",
+                              border: "1px solid #d1d5db",
+                              textAlign: "left",
+                              fontWeight: "600",
+                              width: "35%",
+                            }}
+                          >
+                            Type
+                          </th>
+                          <th
+                            style={{
+                              padding: "6px 8px",
+                              border: "1px solid #d1d5db",
+                              textAlign: "left",
+                              fontWeight: "600",
+                              width: "65%",
+                            }}
+                          >
+                            Commentaire
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data.compteurs || []).map((c) => (
+                          <tr key={c.id} style={noBreakInside}>
+                            <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>
+                              {c.titre}
+                            </td>
+                            <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#4b5563" }}>
+                              {c.commentaire || "-"}
+                              {(c.photos || []).length > 0 && (
+                                <span style={{ color: "#2563eb", marginLeft: "5px" }}>
+                                  [📷 {(c.photos || []).length}]
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 {/* SIGNATURES - Toujours ensemble, sur nouvelle page si nécessaire */}
                 <div
                   className="signatures-block"
@@ -3632,8 +3722,8 @@
                     data.info.type === "entree"
                       ? "📥 Entrée"
                       : data.info.type === "sortie"
-                      ? "📤 Sortie"
-                      : "🔎 Vérification"
+                        ? "📤 Sortie"
+                        : "🔎 Vérification"
                   } •{" "}
                   {templates[currentTemplate]?.nom}
                   {totalPhotos > 0 && ` • 📷 ${totalPhotos}`}
@@ -4049,6 +4139,48 @@
                     </div>
                   ))}
                 </div>
+                <hr className="my-6 border-gray-200" />
+
+                <h2 className="font-semibold text-lg mb-4">📊 Compteurs</h2>
+                <div className="space-y-4">
+                  {(data.compteurs || []).map((c) => (
+                    <div key={c.id} className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{c.titre}</span>
+                        {c.photos?.length > 0 && (
+                          <span className="text-xs text-blue-600">📷 {c.photos.length}</span>
+                        )}
+                      </div>
+
+                      <input
+                        type="text"
+                        placeholder="Commentaire..."
+                        defaultValue={c.commentaire}
+                        onBlur={(e) => updateCompteur(c.id, "commentaire", e.target.value)}
+                        className="w-full text-sm p-2 border rounded-lg mb-2"
+                      />
+
+                      <PhotoGallery
+                        photos={c.photos || []}
+                        onRemove={(photoId) =>
+                          updateCompteur(
+                            c.id,
+                            "photos",
+                            (c.photos || []).filter((p) => p.id !== photoId),
+                          )
+                        }
+                        inputId={`p-m-${c.id}`}
+                        onAddPhoto={(e) =>
+                          handlePhotoCapture(
+                            e,
+                            (photos) => updateCompteur(c.id, "photos", photos),
+                            c.photos || [],
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -4184,8 +4316,8 @@
                         data.info.type === "entree"
                           ? "Entrée"
                           : data.info.type === "sortie"
-                          ? "Sortie"
-                          : "Vérification"
+                            ? "Sortie"
+                            : "Vérification"
                       }
                     </strong>
                     <br />
