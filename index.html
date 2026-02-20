@@ -527,6 +527,7 @@
           proprietaire: "",
           locataire: "",
           date: new Date().toISOString().split("T")[0],
+          structure: "",
           adresse: "",
           appartement: template.nom,
         },
@@ -855,6 +856,9 @@
       const [odAddressFolders, setOdAddressFolders] = useState([]); // dossiers adresses sous Maintenance/<SousDossier>
       const [odAddressSelected, setOdAddressSelected] = useState(""); // dossier adresse choisi
 
+      const [odStructureFolders, setOdStructureFolders] = useState([]); // dossiers Structure sous Maintenance/<SousDossier>
+      const [odStructureSelected, setOdStructureSelected] = useState(""); // structure choisie
+
       const [maintenanceId, setMaintenanceId] = useState(null);
 
       const [odFolders, setOdFolders] = useState([]); // sous-dossiers de Maintenance/
@@ -938,7 +942,7 @@
         }
       };
 
-      const refreshAddressFolders = async () => {
+      const refreshStructureFolders = async () => {
         if (!odSelected) {
           alert("Choisis d'abord un sous-dossier (Maintenance/...).");
           return;
@@ -956,27 +960,67 @@
             .map((i) => i.name)
             .sort((a, b) => a.localeCompare(b, "fr"));
 
+          setOdStructureFolders(folders);
+
+          if (!folders.includes(odStructureSelected)) {
+            setOdStructureSelected(folders[0] || "");
+          }
+        } catch (e) {
+          console.error(e);
+          alert("Impossible de lister les dossiers Structure dans ce sous-dossier.");
+        } finally {
+          setOdLoading(false);
+        }
+      };
+
+      const refreshAddressFolders = async () => {
+        if (!odSelected) {
+          alert("Choisis d'abord un sous-dossier (Maintenance/...).");
+          return;
+        }
+        if (!odStructureSelected) {
+          alert("Choisis d'abord une Structure.");
+          return;
+        }
+
+        const base = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}`; // Maintenance/<SousDossier>/<Structure>
+
+        if (odLoading) return;
+        setOdLoading(true);
+
+        try {
+          const items = await listOneDriveChildren(base);
+          const folders = items
+            .filter((i) => i.folder)
+            .map((i) => i.name)
+            .sort((a, b) => a.localeCompare(b, "fr"));
+
           setOdAddressFolders(folders);
 
-          // Si l'adresse sélectionnée n'existe plus, ou vide, on prend la 1ère
           if (!folders.includes(odAddressSelected)) {
             setOdAddressSelected(folders[0] || "");
           }
         } catch (e) {
           console.error(e);
-          alert(
-            "Impossible de lister les dossiers Adresse dans ce sous-dossier.",
-          );
+          alert("Impossible de lister les dossiers Adresse dans cette structure.");
         } finally {
           setOdLoading(false);
         }
       };
 
       useEffect(() => {
+        setOdStructureFolders([]);
+        setOdStructureSelected("");
         setOdAddressFolders([]);
         setOdAddressSelected("");
-        if (odSelected) refreshAddressFolders();
+        if (odSelected) refreshStructureFolders();
       }, [odSelected]);
+
+      useEffect(() => {
+        setOdAddressFolders([]);
+        setOdAddressSelected("");
+        if (odSelected && odStructureSelected) refreshAddressFolders();
+      }, [odSelected, odStructureSelected]);
 
       const saveEdlToOneDrive = async () => {
         if (!odSelected) return alert("Choisis un sous-dossier.");
@@ -989,10 +1033,17 @@
           return;
         }
 
+        const structure = (data.info.structure || "").trim();
+        if (!structure) {
+          alert("Renseigne la Structure avant de sauvegarder (dossier intermédiaire obligatoire).");
+          return;
+        }
+
         // Si tu veux imposer aussi le choix du dossier adresse existant :
         // if (!odAddressSelected) return alert("Choisis un dossier adresse.");
 
         const label = buildEdlName(data.info);
+        const structureFolder = slug(structure);
         const adresseFolder = slug(adresse);
 
         // Maintenance/<SousDossier>/<Adresse>/
@@ -1008,6 +1059,9 @@
             JSON.stringify(deepClone(data), null, 2),
           );
 
+          await refreshStructureFolders();
+          setOdStructureSelected(structureFolder);
+
           await refreshAddressFolders();
           setOdAddressSelected(adresseFolder);
 
@@ -1020,9 +1074,10 @@
 
       const listEdlsFromOneDrive = async () => {
         if (!odSelected) return alert("Choisis un sous-dossier.");
+        if (!odStructureSelected) return alert("Choisis une structure.");
         if (!odAddressSelected) return alert("Choisis un dossier adresse.");
 
-        const folderPath = `${BASE_FOLDER}/${odSelected}/${odAddressSelected}`;
+        const folderPath = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}/${odAddressSelected}`;
 
         if (odLoading) return;
         setOdLoading(true);
@@ -1047,12 +1102,12 @@
       };
 
       const loadEdlFromOneDrive = async (fileName) => {
-        if (!odSelected || !odAddressSelected) {
-          alert("Choisis un sous-dossier + un dossier adresse.");
+        if (!odSelected || !odStructureSelected || !odAddressSelected) {
+          alert("Choisis un sous-dossier + une structure + un dossier adresse.");
           return;
         }
 
-        const filePath = `${BASE_FOLDER}/${odSelected}/${odAddressSelected}/${fileName}`;
+        const filePath = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}/${odAddressSelected}/${fileName}`;
 
         try {
           const txt = await downloadOneDriveText(filePath);
@@ -1400,8 +1455,9 @@
               .outputPdf("blob");
 
             // ✅ ICI (après blob)
+            const structureFolder = slug(data.info.structure);
             const adresseFolder = slug(data.info.adresse);
-            const folderPath = `${BASE_FOLDER}/${odSelected}/${adresseFolder}`;
+            const folderPath = `${BASE_FOLDER}/${odSelected}/${structureFolder}/${adresseFolder}`;
 
             await ensureFolderPath(folderPath);
 
@@ -3852,6 +3908,34 @@
                       </select>
 
                       <label className="block text-sm font-medium mt-3 mb-2">
+                        Structure (dossier)
+                      </label>
+
+                      <div className="flex gap-2">
+                        <select
+                          value={odStructureSelected}
+                          onChange={(e) => setOdStructureSelected(e.target.value)}
+                          className="flex-1 p-3 border rounded-lg"
+                        >
+                          <option value="">— choisir —</option>
+                          {odStructureFolders.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={refreshStructureFolders}
+                          className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm"
+                          disabled={odLoading}
+                        >
+                          🔄
+                        </button>
+                      </div>
+
+                      <label className="block text-sm font-medium mt-3 mb-2">
                         Adresse (dossier)
                       </label>
 
@@ -3860,6 +3944,7 @@
                           value={odAddressSelected}
                           onChange={(e) => setOdAddressSelected(e.target.value)}
                           className="flex-1 p-3 border rounded-lg"
+                          disabled={!odStructureSelected}   // ✅ AJOUT
                         >
                           <option value="">— choisir —</option>
                           {odAddressFolders.map((name) => (
@@ -3882,7 +3967,7 @@
                       <p className="text-xs text-gray-500 mt-2">
                         Chemin :{" "}
                         <strong>
-                          {BASE_FOLDER}/{odSelected || "…"}/{odAddressSelected || "…"}
+                          {BASE_FOLDER}/{odSelected || "…"}/{odStructureSelected || "…"}/{odAddressSelected || "…"}
                         </strong>
                       </p>
 
@@ -4064,15 +4149,27 @@
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-1">
-                          Adresse = Structure + Appartement
+                          Structure (dossier)
+                        </label>
+                        <input
+                          type="text"
+                          value={data.info.structure || ""}
+                          onChange={(e) => updateInfo("structure", e.target.value)}
+                          className="w-full p-3 border rounded-lg"
+                          placeholder="Ex: Résidence Valmy, LDC, Foyer ..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Adresse (dossier)
                         </label>
                         <textarea
                           value={data.info.adresse}
-                          onChange={(e) =>
-                            updateInfo("adresse", e.target.value)
-                          }
+                          onChange={(e) => updateInfo("adresse", e.target.value)}
                           rows={2}
                           className="w-full p-3 border rounded-lg"
+                          placeholder="Ex: 12 rue ... / Bât A / Appt 201"
                         />
                       </div>
                     </div>
