@@ -2756,6 +2756,8 @@
       // Print View
       const PrintView = () => {
         const allPhotos = [];
+
+        // Photos des pièces
         Object.entries(data.pieces).forEach(([_, piece]) => {
           [...piece.etatLieux, ...piece.inventaire].forEach((item) => {
             item.photos.forEach((photo) =>
@@ -2767,6 +2769,30 @@
               }),
             );
           });
+        });
+
+        // 🔑 Photos des clés
+        (data.cles || []).forEach((cle) => {
+          (cle.photos || []).forEach((photo) =>
+            allPhotos.push({
+              piece: "Clés",
+              element: cle.nom,
+              photo,
+              index: allPhotos.length + 1,
+            }),
+          );
+        });
+
+        // 📊 Photos des compteurs
+        (data.compteurs || []).forEach((c) => {
+          (c.photos || []).forEach((photo) =>
+            allPhotos.push({
+              piece: "Compteurs",
+              element: c.titre,
+              photo,
+              index: allPhotos.length + 1,
+            }),
+          );
         });
 
         // Styles pour éviter les coupures
