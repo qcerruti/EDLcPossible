@@ -1127,6 +1127,17 @@
           info: { ...prev.info, [field]: value },
         }));
 
+      const updateStructureInfo = (value) => {
+        updateInfo("structure", value);
+        setOdStructureSelected(value);       // ✅ alimente le “sélecteur” OneDrive
+        setOdAddressSelected("");            // reset adresse quand on change de structure
+      };
+
+      const updateAdresseInfo = (value) => {
+        updateInfo("adresse", value);
+        setOdAddressSelected(value);         // ✅ alimente le “sélecteur” OneDrive
+      };
+
       const updateEtatLieux = (pieceKey, itemId, field, value) => {
         setData((prev) => ({
           ...prev,
@@ -4151,26 +4162,60 @@
                         <label className="block text-sm font-medium mb-1">
                           Structure (dossier)
                         </label>
+
                         <input
+                          list="od-structures-infos"
                           type="text"
                           value={data.info.structure || ""}
-                          onChange={(e) => updateInfo("structure", e.target.value)}
+                          onChange={(e) => updateStructureInfo(e.target.value)}
                           className="w-full p-3 border rounded-lg"
-                          placeholder="Ex: Résidence Valmy, LDC, Foyer ..."
+                          placeholder={
+                            odSelected
+                              ? "Choisir un dossier existant ou écrire un nouveau…"
+                              : "Choisir d’abord un sous-dossier OneDrive (Maintenance/...)"
+                          }
+                          disabled={!odSelected}
                         />
+
+                        <datalist id="od-structures-infos">
+                          {odStructureFolders.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          Suggestions = dossiers OneDrive dans {BASE_FOLDER}/{odSelected || "…"}
+                        </p>
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium mb-1">
                           Adresse (dossier)
                         </label>
-                        <textarea
-                          value={data.info.adresse}
-                          onChange={(e) => updateInfo("adresse", e.target.value)}
-                          rows={2}
+
+                        <input
+                          list="od-adresses-infos"
+                          type="text"
+                          value={data.info.adresse || ""}
+                          onChange={(e) => updateAdresseInfo(e.target.value)}
                           className="w-full p-3 border rounded-lg"
-                          placeholder="Ex: 12 rue ... / Bât A / Appt 201"
+                          placeholder={
+                            odSelected && (data.info.structure || odStructureSelected)
+                              ? "Choisir un dossier existant ou écrire un nouveau…"
+                              : "Choisir/renseigner d’abord la Structure"
+                          }
+                          disabled={!odSelected || !(data.info.structure || odStructureSelected)}
                         />
+
+                        <datalist id="od-adresses-infos">
+                          {odAddressFolders.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          Suggestions = dossiers OneDrive dans {BASE_FOLDER}/{odSelected || "…"} / {(data.info.structure || odStructureSelected) || "…"}
+                        </p>
                       </div>
                     </div>
                   </div>
