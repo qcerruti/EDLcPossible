@@ -189,7 +189,12 @@
       const adresse = slug(info.adresse || "Adresse");
       const locataire = slug(info.locataire || "Locataire");
       const date = info.date || new Date().toISOString().slice(0, 10);
-      const type = info.type === "entree" ? "ENTREE" : "SORTIE";
+      const type =
+        info.type === "entree"
+          ? "ENTREE"
+          : info.type === "sortie"
+          ? "SORTIE"
+          : "VERIFICATION";
       return `${adresse}-${locataire}-${date}-${type}`;
     };
 
@@ -3623,7 +3628,13 @@
               <div>
                 <h1 className="text-lg font-bold">État des lieux</h1>
                 <p className="text-xs opacity-80">
-                  {data.info.type === "entree" ? "📥 Entrée" : "📤 Sortie"} •{" "}
+                  {
+                    data.info.type === "entree"
+                      ? "📥 Entrée"
+                      : data.info.type === "sortie"
+                      ? "📤 Sortie"
+                      : "🔎 Vérification"
+                  } •{" "}
                   {templates[currentTemplate]?.nom}
                   {totalPhotos > 0 && ` • 📷 ${totalPhotos}`}
                 </p>
@@ -3877,6 +3888,12 @@
                           className={`flex-1 py-3 rounded-lg font-medium ${data.info.type === "sortie" ? "bg-orange-500 text-white" : "bg-gray-100"}`}
                         >
                           📤 Sortie
+                        </button>
+                        <button
+                          onClick={() => updateInfo("type", "verification")}
+                          className={`flex-1 py-3 rounded-lg font-medium ${data.info.type === "verification" ? "bg-orange-500 text-white" : "bg-gray-100"}`}
+                        >
+                          🔎 Vérification
                         </button>
                       </div>
                     </div>
@@ -4176,7 +4193,13 @@
                   <p className="text-sm text-blue-700">
                     Type:{" "}
                     <strong>
-                      {data.info.type === "entree" ? "Entrée" : "Sortie"}
+                      {
+                        data.info.type === "entree"
+                          ? "Entrée"
+                          : data.info.type === "sortie"
+                          ? "Sortie"
+                          : "Vérification"
+                      }
                     </strong>
                     <br />
                     Appartement:{" "}
