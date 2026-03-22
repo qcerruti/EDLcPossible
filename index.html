@@ -4097,26 +4097,40 @@
                             Structure
                           </label>
                           <input
-                            type="text"
+                            list="structures-list"
                             value={data.info.structure || ""}
-                            onChange={(e) =>
-                              updateInfo("structure", e.target.value)
-                            }
+                            onChange={(e) => {
+                              updateInfo("structure", e.target.value);
+                              setOdStructureSelected(slug(e.target.value));
+                            }}
                             className="w-full p-3 border rounded-lg"
                           />
+
+                          <datalist id="structures-list">
+                            {odStructureFolders.map((name) => (
+                              <option key={name} value={name} />
+                            ))}
+                          </datalist>
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">
                             Adresse
                           </label>
-                          <textarea
-                            value={data.info.adresse}
-                            onChange={(e) =>
-                              updateInfo("adresse", e.target.value)
-                            }
-                            rows={2}
+                          <input
+                            list="adresses-list"
+                            value={data.info.adresse || ""}
+                            onChange={(e) => {
+                              updateInfo("adresse", e.target.value);
+                              setOdAddressSelected(slug(e.target.value));
+                            }}
                             className="w-full p-3 border rounded-lg"
                           />
+
+                          <datalist id="adresses-list">
+                            {odAddressFolders.map((name) => (
+                              <option key={name} value={name} />
+                            ))}
+                          </datalist>
                         </div>
                       </div>
                     </div>
