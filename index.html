@@ -9,14 +9,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>État des lieux</title>
-    <script src="assets/react.production.min.js"></script>
-    <script src="assets/react-dom.production.min.js"></script>
-    <script src="assets/babel.min.js"></script>
-    <script src="assets/lucide.min.js"></script>
-    <script src="assets/msal-browser.min.js"></script>
-    <script src="assets/html2pdf.bundle.min.js"></script>
-
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js"></script>
     <style>
       * {
         -webkit-tap-highlight-color: transparent;
@@ -193,7 +191,12 @@
         const adresse = slug(info.adresse || "Adresse");
         const locataire = slug(info.locataire || "Locataire");
         const date = info.date || new Date().toISOString().slice(0, 10);
-        const type = info.type === "entree" ? "ENTREE" : "SORTIE";
+        const type =
+          info.type === "entree"
+            ? "ENTREE"
+            : info.type === "sortie"
+              ? "SORTIE"
+              : "VERIFICATION";
         return `${adresse}-${locataire}-${date}-${type}`;
       };
 
@@ -523,6 +526,7 @@
             proprietaire: "",
             locataire: "",
             date: new Date().toISOString().split("T")[0],
+            structure: "",
             adresse: "",
             appartement: template.nom,
           },
@@ -533,6 +537,27 @@
             commentaire: "",
             photos: [],
           })),
+          compteurs: [
+            {
+              id: "eau_froide",
+              titre: "💧 Eau froide",
+              commentaire: "",
+              photos: [],
+            },
+            {
+              id: "eau_chaude",
+              titre: "🔥 Eau chaude",
+              commentaire: "",
+              photos: [],
+            },
+            {
+              id: "electricite",
+              titre: "⚡ Électricité",
+              commentaire: "",
+              photos: [],
+            },
+            { id: "gaz", titre: "🔥 Gaz", commentaire: "", photos: [] },
+          ],
           signatures: {
             locataire: { nom: "", image: "" },
             proprietaire: { nom: "", image: "" },
@@ -845,6 +870,9 @@
         const [odAddressFolders, setOdAddressFolders] = useState([]); // dossiers adresses sous Maintenance/<SousDossier>
         const [odAddressSelected, setOdAddressSelected] = useState(""); // dossier adresse choisi
 
+        const [odStructureFolders, setOdStructureFolders] = useState([]); // dossiers Structure sous Maintenance/<SousDossier>
+        const [odStructureSelected, setOdStructureSelected] = useState(""); // structure choisie
+
         const [maintenanceId, setMaintenanceId] = useState(null);
 
         const [odFolders, setOdFolders] = useState([]); // sous-dossiers de Maintenance/
@@ -928,7 +956,7 @@
           }
         };
 
-        const refreshAddressFolders = async () => {
+        const refreshStructureFolders = async () => {
           if (!odSelected) {
             alert("Choisis d'abord un sous-dossier (Maintenance/...).");
             return;
@@ -946,16 +974,52 @@
               .map((i) => i.name)
               .sort((a, b) => a.localeCompare(b, "fr"));
 
+            setOdStructureFolders(folders);
+
+            if (!folders.includes(odStructureSelected)) {
+              setOdStructureSelected(folders[0] || "");
+            }
+          } catch (e) {
+            console.error(e);
+            alert(
+              "Impossible de lister les dossiers Structure dans ce sous-dossier.",
+            );
+          } finally {
+            setOdLoading(false);
+          }
+        };
+
+        const refreshAddressFolders = async () => {
+          if (!odSelected) {
+            alert("Choisis d'abord un sous-dossier (Maintenance/...).");
+            return;
+          }
+          if (!odStructureSelected) {
+            alert("Choisis d'abord une Structure.");
+            return;
+          }
+
+          const base = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}`; // Maintenance/<SousDossier>/<Structure>
+
+          if (odLoading) return;
+          setOdLoading(true);
+
+          try {
+            const items = await listOneDriveChildren(base);
+            const folders = items
+              .filter((i) => i.folder)
+              .map((i) => i.name)
+              .sort((a, b) => a.localeCompare(b, "fr"));
+
             setOdAddressFolders(folders);
 
-            // Si l'adresse sélectionnée n'existe plus, ou vide, on prend la 1ère
             if (!folders.includes(odAddressSelected)) {
               setOdAddressSelected(folders[0] || "");
             }
           } catch (e) {
             console.error(e);
             alert(
-              "Impossible de lister les dossiers Adresse dans ce sous-dossier.",
+              "Impossible de lister les dossiers Adresse dans cette structure.",
             );
           } finally {
             setOdLoading(false);
@@ -963,10 +1027,18 @@
         };
 
         useEffect(() => {
+          setOdStructureFolders([]);
+          setOdStructureSelected("");
           setOdAddressFolders([]);
           setOdAddressSelected("");
-          if (odSelected) refreshAddressFolders();
+          if (odSelected) refreshStructureFolders();
         }, [odSelected]);
+
+        useEffect(() => {
+          setOdAddressFolders([]);
+          setOdAddressSelected("");
+          if (odSelected && odStructureSelected) refreshAddressFolders();
+        }, [odSelected, odStructureSelected]);
 
         const saveEdlToOneDrive = async () => {
           if (!odSelected) return alert("Choisis un sous-dossier.");
@@ -979,10 +1051,19 @@
             return;
           }
 
+          const structure = (data.info.structure || "").trim();
+          if (!structure) {
+            alert(
+              "Renseigne la Structure avant de sauvegarder (dossier intermédiaire obligatoire).",
+            );
+            return;
+          }
+
           // Si tu veux imposer aussi le choix du dossier adresse existant :
           // if (!odAddressSelected) return alert("Choisis un dossier adresse.");
 
           const label = buildEdlName(data.info);
+          const structureFolder = slug(structure);
           const adresseFolder = slug(adresse);
 
           // Maintenance/<SousDossier>/<Adresse>/
@@ -998,6 +1079,9 @@
               JSON.stringify(deepClone(data), null, 2),
             );
 
+            await refreshStructureFolders();
+            setOdStructureSelected(structureFolder);
+
             await refreshAddressFolders();
             setOdAddressSelected(adresseFolder);
 
@@ -1010,9 +1094,10 @@
 
         const listEdlsFromOneDrive = async () => {
           if (!odSelected) return alert("Choisis un sous-dossier.");
+          if (!odStructureSelected) return alert("Choisis une structure.");
           if (!odAddressSelected) return alert("Choisis un dossier adresse.");
 
-          const folderPath = `${BASE_FOLDER}/${odSelected}/${odAddressSelected}`;
+          const folderPath = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}/${odAddressSelected}`;
 
           if (odLoading) return;
           setOdLoading(true);
@@ -1037,12 +1122,14 @@
         };
 
         const loadEdlFromOneDrive = async (fileName) => {
-          if (!odSelected || !odAddressSelected) {
-            alert("Choisis un sous-dossier + un dossier adresse.");
+          if (!odSelected || !odStructureSelected || !odAddressSelected) {
+            alert(
+              "Choisis un sous-dossier + une structure + un dossier adresse.",
+            );
             return;
           }
 
-          const filePath = `${BASE_FOLDER}/${odSelected}/${odAddressSelected}/${fileName}`;
+          const filePath = `${BASE_FOLDER}/${odSelected}/${odStructureSelected}/${odAddressSelected}/${fileName}`;
 
           try {
             const txt = await downloadOneDriveText(filePath);
@@ -1061,6 +1148,17 @@
             ...prev,
             info: { ...prev.info, [field]: value },
           }));
+
+        const updateStructureInfo = (value) => {
+          updateInfo("structure", value);
+          setOdStructureSelected(value); // ✅ alimente le “sélecteur” OneDrive
+          setOdAddressSelected(""); // reset adresse quand on change de structure
+        };
+
+        const updateAdresseInfo = (value) => {
+          updateInfo("adresse", value);
+          setOdAddressSelected(value); // ✅ alimente le “sélecteur” OneDrive
+        };
 
         const updateEtatLieux = (pieceKey, itemId, field, value) => {
           setData((prev) => ({
@@ -1099,6 +1197,15 @@
               cle.id === cleId ? { ...cle, [field]: value } : cle,
             ),
           }));
+
+        const updateCompteur = (compteurId, field, value) =>
+          setData((prev) => ({
+            ...prev,
+            compteurs: (prev.compteurs || []).map((c) =>
+              c.id === compteurId ? { ...c, [field]: value } : c,
+            ),
+          }));
+
         const updateSignature = (who, field, value) =>
           setData((prev) => ({
             ...prev,
@@ -1506,6 +1613,7 @@
             piece.inventaire.forEach((item) => (total += item.photos.length));
           });
           data.cles.forEach((cle) => (total += cle.photos.length));
+          (data.compteurs || []).forEach((c) => (total += c.photos.length));
           return total;
         };
 
@@ -2765,6 +2873,8 @@
         // Print View
         const PrintView = () => {
           const allPhotos = [];
+
+          // Photos des pièces
           Object.entries(data.pieces).forEach(([_, piece]) => {
             [...piece.etatLieux, ...piece.inventaire].forEach((item) => {
               item.photos.forEach((photo) =>
@@ -2776,6 +2886,30 @@
                 }),
               );
             });
+          });
+
+          // 🔑 Photos des clés
+          (data.cles || []).forEach((cle) => {
+            (cle.photos || []).forEach((photo) =>
+              allPhotos.push({
+                piece: "Clés",
+                element: cle.nom,
+                photo,
+                index: allPhotos.length + 1,
+              }),
+            );
+          });
+
+          // 📊 Photos des compteurs
+          (data.compteurs || []).forEach((c) => {
+            (c.photos || []).forEach((photo) =>
+              allPhotos.push({
+                piece: "Compteurs",
+                element: c.titre,
+                photo,
+                index: allPhotos.length + 1,
+              }),
+            );
           });
 
           // Styles pour éviter les coupures
@@ -3430,6 +3564,96 @@
                     </table>
                   </div>
 
+                  {/* COMPTEURS */}
+                  {(data.compteurs || []).length > 0 && (
+                    <div style={{ marginBottom: "15px" }}>
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          tableLayout: "fixed",
+                        }}
+                      >
+                        <thead>
+                          <tr>
+                            <th
+                              colSpan="2"
+                              style={{
+                                backgroundColor: "#0ea5e9",
+                                color: "white",
+                                padding: "8px 12px",
+                                fontWeight: "bold",
+                                fontSize: "12px",
+                                textTransform: "uppercase",
+                                textAlign: "left",
+                                border: "none",
+                              }}
+                            >
+                              📊 Compteurs
+                            </th>
+                          </tr>
+                          <tr style={{ backgroundColor: "#e5e7eb" }}>
+                            <th
+                              style={{
+                                padding: "6px 8px",
+                                border: "1px solid #d1d5db",
+                                textAlign: "left",
+                                fontWeight: "600",
+                                width: "35%",
+                              }}
+                            >
+                              Type
+                            </th>
+                            <th
+                              style={{
+                                padding: "6px 8px",
+                                border: "1px solid #d1d5db",
+                                textAlign: "left",
+                                fontWeight: "600",
+                                width: "65%",
+                              }}
+                            >
+                              Commentaire
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(data.compteurs || []).map((c) => (
+                            <tr key={c.id} style={noBreakInside}>
+                              <td
+                                style={{
+                                  padding: "5px 8px",
+                                  border: "1px solid #d1d5db",
+                                }}
+                              >
+                                {c.titre}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "5px 8px",
+                                  border: "1px solid #d1d5db",
+                                  color: "#4b5563",
+                                }}
+                              >
+                                {c.commentaire || "-"}
+                                {(c.photos || []).length > 0 && (
+                                  <span
+                                    style={{
+                                      color: "#2563eb",
+                                      marginLeft: "5px",
+                                    }}
+                                  >
+                                    [📷 {(c.photos || []).length}]
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
                   {/* SIGNATURES - Toujours ensemble, sur nouvelle page si nécessaire */}
                   <div
                     className="signatures-block"
@@ -3653,8 +3877,12 @@
                 <div>
                   <h1 className="text-lg font-bold">État des lieux</h1>
                   <p className="text-xs opacity-80">
-                    {data.info.type === "entree" ? "📥 Entrée" : "📤 Sortie"} •{" "}
-                    {templates[currentTemplate]?.nom}
+                    {data.info.type === "entree"
+                      ? "📥 Entrée"
+                      : data.info.type === "sortie"
+                        ? "📤 Sortie"
+                        : "🔎 Vérification"}{" "}
+                    • {templates[currentTemplate]?.nom}
                     {totalPhotos > 0 && ` • 📷 ${totalPhotos}`}
                   </p>
                 </div>
@@ -3758,6 +3986,36 @@
                         </select>
 
                         <label className="block text-sm font-medium mt-3 mb-2">
+                          Structure (dossier)
+                        </label>
+
+                        <div className="flex gap-2">
+                          <select
+                            value={odStructureSelected}
+                            onChange={(e) =>
+                              setOdStructureSelected(e.target.value)
+                            }
+                            className="flex-1 p-3 border rounded-lg"
+                          >
+                            <option value="">— choisir —</option>
+                            {odStructureFolders.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={refreshStructureFolders}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm"
+                            disabled={odLoading}
+                          >
+                            🔄
+                          </button>
+                        </div>
+
+                        <label className="block text-sm font-medium mt-3 mb-2">
                           Adresse (dossier)
                         </label>
 
@@ -3768,6 +4026,7 @@
                               setOdAddressSelected(e.target.value)
                             }
                             className="flex-1 p-3 border rounded-lg"
+                            disabled={!odStructureSelected} // ✅ AJOUT
                           >
                             <option value="">— choisir —</option>
                             {odAddressFolders.map((name) => (
@@ -3791,6 +4050,7 @@
                           Chemin :{" "}
                           <strong>
                             {BASE_FOLDER}/{odSelected || "…"}/
+                            {odStructureSelected || "…"}/
                             {odAddressSelected || "…"}
                           </strong>
                         </p>
@@ -3913,6 +4173,12 @@
                           >
                             📤 Sortie
                           </button>
+                          <button
+                            onClick={() => updateInfo("type", "verification")}
+                            className={`flex-1 py-3 rounded-lg font-medium ${data.info.type === "verification" ? "bg-yellow-500 text-white" : "bg-gray-100"}`}
+                          >
+                            🔎 Vérification
+                          </button>
                         </div>
                       </div>
                       <div className="mb-4">
@@ -3942,19 +4208,6 @@
                       <div className="space-y-3">
                         <div>
                           <label className="block text-sm font-medium mb-1">
-                            Propriétaire
-                          </label>
-                          <input
-                            type="text"
-                            value={data.info.proprietaire}
-                            onChange={(e) =>
-                              updateInfo("proprietaire", e.target.value)
-                            }
-                            className="w-full p-3 border rounded-lg"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">
                             Locataire
                           </label>
                           <input
@@ -3979,16 +4232,71 @@
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">
-                            Adresse
+                            Structure (dossier)
                           </label>
-                          <textarea
-                            value={data.info.adresse}
+
+                          <input
+                            list="od-structures-infos"
+                            type="text"
+                            value={data.info.structure || ""}
                             onChange={(e) =>
-                              updateInfo("adresse", e.target.value)
+                              updateStructureInfo(e.target.value)
                             }
-                            rows={2}
                             className="w-full p-3 border rounded-lg"
+                            placeholder={
+                              odSelected
+                                ? "Choisir un dossier existant ou écrire un nouveau…"
+                                : "Choisir d’abord un sous-dossier OneDrive (Maintenance/...)"
+                            }
+                            disabled={!odSelected}
                           />
+
+                          <datalist id="od-structures-infos">
+                            {odStructureFolders.map((name) => (
+                              <option key={name} value={name} />
+                            ))}
+                          </datalist>
+
+                          <p className="text-xs text-gray-500 mt-1">
+                            Suggestions = dossiers OneDrive dans {BASE_FOLDER}/
+                            {odSelected || "…"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Adresse (dossier)
+                          </label>
+
+                          <input
+                            list="od-adresses-infos"
+                            type="text"
+                            value={data.info.adresse || ""}
+                            onChange={(e) => updateAdresseInfo(e.target.value)}
+                            className="w-full p-3 border rounded-lg"
+                            placeholder={
+                              odSelected &&
+                              (data.info.structure || odStructureSelected)
+                                ? "Choisir un dossier existant ou écrire un nouveau…"
+                                : "Choisir/renseigner d’abord la Structure"
+                            }
+                            disabled={
+                              !odSelected ||
+                              !(data.info.structure || odStructureSelected)
+                            }
+                          />
+
+                          <datalist id="od-adresses-infos">
+                            {odAddressFolders.map((name) => (
+                              <option key={name} value={name} />
+                            ))}
+                          </datalist>
+
+                          <p className="text-xs text-gray-500 mt-1">
+                            Suggestions = dossiers OneDrive dans {BASE_FOLDER}/
+                            {odSelected || "…"} /{" "}
+                            {data.info.structure || odStructureSelected || "…"}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -4074,6 +4382,53 @@
                               e,
                               (photos) => updateCle(cle.id, "photos", photos),
                               cle.photos,
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <hr className="my-6 border-gray-200" />
+
+                  <h2 className="font-semibold text-lg mb-4">📊 Compteurs</h2>
+                  <div className="space-y-4">
+                    {(data.compteurs || []).map((c) => (
+                      <div key={c.id} className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{c.titre}</span>
+                          {c.photos?.length > 0 && (
+                            <span className="text-xs text-blue-600">
+                              📷 {c.photos.length}
+                            </span>
+                          )}
+                        </div>
+
+                        <input
+                          type="text"
+                          placeholder="Commentaire..."
+                          defaultValue={c.commentaire}
+                          onBlur={(e) =>
+                            updateCompteur(c.id, "commentaire", e.target.value)
+                          }
+                          className="w-full text-sm p-2 border rounded-lg mb-2"
+                        />
+
+                        <PhotoGallery
+                          photos={c.photos || []}
+                          onRemove={(photoId) =>
+                            updateCompteur(
+                              c.id,
+                              "photos",
+                              (c.photos || []).filter((p) => p.id !== photoId),
+                            )
+                          }
+                          inputId={`p-m-${c.id}`}
+                          onAddPhoto={(e) =>
+                            handlePhotoCapture(
+                              e,
+                              (photos) =>
+                                updateCompteur(c.id, "photos", photos),
+                              c.photos || [],
                             )
                           }
                         />
@@ -4211,7 +4566,11 @@
                     <p className="text-sm text-blue-700">
                       Type:{" "}
                       <strong>
-                        {data.info.type === "entree" ? "Entrée" : "Sortie"}
+                        {data.info.type === "entree"
+                          ? "Entrée"
+                          : data.info.type === "sortie"
+                            ? "Sortie"
+                            : "Vérification"}
                       </strong>
                       <br />
                       Appartement:{" "}
@@ -4248,7 +4607,7 @@
               <TabButton
                 id="cles"
                 icon="Key"
-                label="Clés"
+                label="Clés + Compteurs"
                 active={activeTab === "cles"}
               />
               <TabButton
