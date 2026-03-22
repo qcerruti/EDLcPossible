@@ -1402,20 +1402,14 @@
                   .from(element)
                   .outputPdf("blob");
 
-                // ✅ ICI (après blob)
-                const adresseFolder = slug(data.info.adresse);
-                const folderPath = `${BASE_FOLDER}/${odSelected}/${adresseFolder}`;
-
                 await ensureFolderPath(folderPath);
 
-                // Sauvegarde du JSON dans le même dossier
                 await uploadTextToOneDrive(
                   folderPath,
                   `${label}.json`,
                   JSON.stringify(deepClone(data), null, 2),
                 );
 
-                // Sauvegarde du PDF dans le même dossier
                 await uploadPdfToOneDrive(folderPath, `${label}.pdf`, blob);
 
                 await refreshAddressFolders();
