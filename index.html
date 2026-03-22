@@ -190,11 +190,12 @@
           .replace(/_+/g, "_");
 
       const buildEdlName = (info) => {
+        const structure = slug(info.structure || "Structure");
         const adresse = slug(info.adresse || "Adresse");
         const locataire = slug(info.locataire || "Locataire");
         const date = info.date || new Date().toISOString().slice(0, 10);
         const type = info.type === "entree" ? "ENTREE" : "SORTIE";
-        return `${adresse}-${locataire}-${date}-${type}`;
+        return `${structure}-${adresse}-${locataire}-${date}-${type}`;
       };
 
       /* ===================== OneDrive helpers (dossier = Maintenance) ===================== */
@@ -2991,6 +2992,24 @@
                           }}
                         >
                           {data.info.date}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            border: "1px solid #d1d5db",
+                            backgroundColor: "#f3f4f6",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Structure
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            border: "1px solid #d1d5db",
+                          }}
+                        >
+                          {data.info.structure || "-"}
                         </td>
                         <td
                           style={{
